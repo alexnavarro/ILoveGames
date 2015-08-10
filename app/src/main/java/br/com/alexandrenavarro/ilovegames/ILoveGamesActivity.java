@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import br.com.alexandrenavarro.ilovegames.model.TopGames;
 import br.com.alexandrenavarro.ilovegames.model.TopGamesResult;
 import br.com.alexandrenavarro.ilovegames.network.HttpRequest;
+import br.com.alexandrenavarro.ilovegames.util.OnBottomListener;
 import br.com.alexandrenavarro.ilovegames.util.EndlessRecyclerOnScrollListener;
 
 public class ILoveGamesActivity extends AppCompatActivity {
@@ -26,10 +27,10 @@ public class ILoveGamesActivity extends AppCompatActivity {
     private static final String TAG = "ILoveGamesActivity";
     private RecyclerView mRecyclerView;
     private RecyclerView.Adapter mAdapter;
-    private StaggeredGridLayoutManager mLayoutManager;
     private boolean isShowingListMode = true;
     private TopGamesResult mTopGamesResult;
     private ArrayList<TopGames> mTopGames = new ArrayList<>();
+    private boolean mIsRefreshing;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,12 +58,14 @@ public class ILoveGamesActivity extends AppCompatActivity {
         String url = "https://api.twitch.tv/kraken/games/top";
 
         if (savedInstanceState == null) {
+            mIsRefreshing=true;
             new HttpRequest<TopGamesResult>().get(this, url, TopGamesResult.class, new Response.Listener<TopGamesResult>() {
                 @Override
                 public void onResponse(TopGamesResult result) {
                     mTopGamesResult = result;
                     if (mAdapter != null) {
                         ((TopGamesAdapter) mAdapter).addAll(result.getTop());
+                        mIsRefreshing=false;
                     }
 
                 }
@@ -77,20 +80,23 @@ public class ILoveGamesActivity extends AppCompatActivity {
     }
 
     private void configScrollListener() {
-        mRecyclerView.addOnScrollListener(new EndlessRecyclerOnScrollListener(this, mRecyclerView.getLayoutManager()) {
+        mRecyclerView.addOnScrollListener(new EndlessRecyclerOnScrollListener( new OnBottomListener() {
 
             @Override
-            public void onLoadMore(int current_page) {
-                if(mTopGames.size() >=50){
-                    return;
-                }
+            public void onBottom() {
+                if(!mIsRefreshing)
+                    if (mTopGames.size() >= 50) {
+                        return;
+                    }
                 Log.i("loadMore", "url" + mTopGamesResult.get_links().getNext());
+                mIsRefreshing=true;
                 new HttpRequest<TopGamesResult>().get(ILoveGamesActivity.this, mTopGamesResult.get_links().getNext(), TopGamesResult.class, new Response.Listener<TopGamesResult>() {
                     @Override
                     public void onResponse(TopGamesResult result) {
                         mTopGamesResult = result;
                         if (mAdapter != null) {
                             ((TopGamesAdapter) mAdapter).addAll(result.getTop());
+                            mIsRefreshing=false;
                         }
 
                     }
@@ -101,7 +107,7 @@ public class ILoveGamesActivity extends AppCompatActivity {
                     }
                 });
             }
-        });
+        }));
     }
 
     @Override
@@ -129,7 +135,6 @@ public class ILoveGamesActivity extends AppCompatActivity {
             ((TopGamesAdapter) mAdapter).changeModeView(isShowingListMode);
             defineLayoutManagerMode();
             item.setTitle(isShowingListMode ? "Grid" : "List");
-            configScrollListener();
             return true;
         }
 

@@ -1,75 +1,98 @@
 package br.com.alexandrenavarro.ilovegames.util;
 
-import android.content.Context;
+import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.StaggeredGridLayoutManager;
 
-import br.com.alexandrenavarro.ilovegames.R;
-
 /**
- * Created by alexandrenavarro on 8/9/15.
+ * Created by alexandrenavarro on 10/08/15.
  */
-public abstract class EndlessRecyclerOnScrollListener extends RecyclerView.OnScrollListener {
-    public static String TAG = EndlessRecyclerOnScrollListener.class.getSimpleName();
+public class EndlessRecyclerOnScrollListener extends RecyclerView.OnScrollListener {
 
-    private int previousTotal = 0; // The total number of items in the dataset after the last load
-    private boolean loading = true; // True if we are still waiting for the last set of data to load.
-    private int visibleThreshold = 5; // The minimum amount of items to have below your current scroll position before loading more.
-    int firstVisibleItem, visibleItemCount, totalItemCount;
+    public enum LAYOUT_MANAGER_TYPE {
+        LINEAR,
+        GRID,
+        STAGGERED_GRID
+    }
 
-    private int current_page = 1;
 
-    private Context context;
-    private RecyclerView.LayoutManager mLayoutManaer;
+    protected LAYOUT_MANAGER_TYPE layoutManagerType;
 
-    public EndlessRecyclerOnScrollListener(Context context, RecyclerView.LayoutManager layoutManager) {
-        this.context = context;
-        this.mLayoutManaer = layoutManager;
+
+    private int[] lastPositions;
+
+
+    private int lastVisibleItemPosition;
+
+    private int currentScrollState = 0;
+
+    private OnBottomListener onBottomListener;
+
+    public EndlessRecyclerOnScrollListener(OnBottomListener onBottomListener) {
+        this.onBottomListener = onBottomListener;
     }
 
     @Override
     public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
         super.onScrolled(recyclerView, dx, dy);
 
-        if (mLayoutManaer instanceof LinearLayoutManager) {
-            visibleItemCount = recyclerView.getChildCount();
-            totalItemCount = mLayoutManaer.getItemCount();
-            firstVisibleItem = ((LinearLayoutManager) mLayoutManaer).findFirstVisibleItemPosition();
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+            if (layoutManager instanceof LinearLayoutManager) {
+                layoutManagerType = LAYOUT_MANAGER_TYPE.LINEAR;
+            } else if (layoutManager instanceof GridLayoutManager) {
+                layoutManagerType = LAYOUT_MANAGER_TYPE.GRID;
+            } else if (layoutManager instanceof StaggeredGridLayoutManager) {
+                layoutManagerType = LAYOUT_MANAGER_TYPE.STAGGERED_GRID;
+            } else {
+                throw new RuntimeException(
+                        "Unsupported LayoutManager used. Valid ones are LinearLayoutManager, GridLayoutManager and StaggeredGridLayoutManager");
+            }
 
-
-            if (loading) {
-                if (totalItemCount > previousTotal) {
-                    loading = false;
-                    previousTotal = totalItemCount;
+        switch (layoutManagerType) {
+            case LINEAR:
+                lastVisibleItemPosition = ((LinearLayoutManager) layoutManager)
+                        .findLastVisibleItemPosition();
+                break;
+            case GRID:
+                lastVisibleItemPosition = ((GridLayoutManager) layoutManager)
+                        .findLastVisibleItemPosition();
+                break;
+            case STAGGERED_GRID:
+                StaggeredGridLayoutManager staggeredGridLayoutManager
+                        = (StaggeredGridLayoutManager) layoutManager;
+                if (lastPositions == null) {
+                    lastPositions = new int[staggeredGridLayoutManager.getSpanCount()];
                 }
-            }
-            if (!loading && (totalItemCount - visibleItemCount)
-                    <= (firstVisibleItem + visibleThreshold)) {
-                // End has been reached
+                staggeredGridLayoutManager.findLastVisibleItemPositions(lastPositions);
+                lastVisibleItemPosition = findMax(lastPositions);
+                break;
+        }
 
-                // Do something
-                current_page++;
+    }
 
-                onLoadMore(current_page);
-
-                loading = true;
-            }
-
-        } else {
-            int grid_column_count = context.getResources().getInteger(R.integer.grid_columm);
-            StaggeredGridLayoutManager mLayoutManager = (StaggeredGridLayoutManager) mLayoutManaer;
-            int visibleItemCount = recyclerView.getChildCount();
-            int totalItemCount = mLayoutManager.getItemCount();
-            int firstVisibleItemsGrid[] = new int[grid_column_count];
-            int firstVisibleItem = mLayoutManager.findFirstVisibleItemPositions(firstVisibleItemsGrid)[0];
-
-            if ((visibleItemCount + firstVisibleItem) >= totalItemCount
-                    && totalItemCount != 0) {
-                onLoadMore(current_page);
-            }
+    @Override
+    public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
+        super.onScrollStateChanged(recyclerView, newState);
+        currentScrollState = newState;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        int visibleItemCount = layoutManager.getChildCount();
+        int totalItemCount = layoutManager.getItemCount();
+        if ((visibleItemCount > 0 && currentScrollState == RecyclerView.SCROLL_STATE_IDLE &&
+                (lastVisibleItemPosition) >= totalItemCount - 1)) {
+            if (null != onBottomListener)
+                onBottomListener.onBottom();
         }
     }
 
-    public abstract void onLoadMore(int current_page);
+
+    private int findMax(int[] lastPositions) {
+        int max = lastPositions[0];
+        for (int value : lastPositions) {
+            if (value > max) {
+                max = value;
+            }
+        }
+        return max;
+    }
 }

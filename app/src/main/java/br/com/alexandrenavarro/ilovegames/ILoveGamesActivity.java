@@ -1,50 +1,115 @@
 package br.com.alexandrenavarro.ilovegames;
 
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.support.v7.widget.StaggeredGridLayoutManager;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 
-public class ILoveGamesActivity extends AppCompatActivity {
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
 
+import java.util.ArrayList;
+
+import br.com.alexandrenavarro.ilovegames.model.TopGames;
+import br.com.alexandrenavarro.ilovegames.model.TopGamesResult;
+import br.com.alexandrenavarro.ilovegames.network.HttpRequest;
+
+public class ILoveGamesActivity extends AppCompatActivity {
+    private static final String ACTION_MODE = "ACTION_MODE";
+    private static final String RESULT = "RESULT";
+    private static final String TOP_GAMES = "TOP_GAMES";
+    private static final String TAG = "ILoveGamesActivity";
     private RecyclerView mRecyclerView;
     private RecyclerView.Adapter mAdapter;
-    private RecyclerView.LayoutManager mLayoutManager;
+    private StaggeredGridLayoutManager mLayoutManager;
+    private boolean isShowingListMode = true;
+    private TopGamesResult mTopGamesResult;
+    private ArrayList<TopGames> mTopGames = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_ilove_games);
+
+
         mRecyclerView = (RecyclerView) findViewById(R.id.my_recycler_view);
+
+        if (savedInstanceState != null) {
+            isShowingListMode = savedInstanceState.getBoolean(ACTION_MODE, true);
+            mTopGamesResult = (TopGamesResult) savedInstanceState.getSerializable(RESULT);
+            mTopGames.clear();
+            mTopGames.addAll((ArrayList<TopGames>) savedInstanceState.getSerializable(TOP_GAMES));
+        }
+
+        defineLayoutManagerMode();
         mRecyclerView.setHasFixedSize(true);
-        mLayoutManager = new LinearLayoutManager(this);
-        mRecyclerView.setLayoutManager(mLayoutManager);
-        String[] ab = new String[]{"a" , "B", "c", "d", "e"};
-         mAdapter = new TopGamesAdapter(ab);
+
+        mAdapter = new TopGamesAdapter(this, mTopGames, isShowingListMode);
         mRecyclerView.setAdapter(mAdapter);
+        String url = "https://api.twitch.tv/kraken/games/top";
+
+        if (savedInstanceState == null) {
+            new HttpRequest<TopGamesResult>().get(this, url, TopGamesResult.class, new Response.Listener<TopGamesResult>() {
+                @Override
+                public void onResponse(TopGamesResult result) {
+                    mTopGamesResult = result;
+                    if (mAdapter != null) {
+                        ((TopGamesAdapter) mAdapter).addAll(result.getTop());
+                    }
+
+                }
+            }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    Log.i(TAG, "That didn't work!");
+                }
+            });
+        }
+
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        outState.putBoolean(ACTION_MODE, isShowingListMode);
+        outState.putSerializable(RESULT, mTopGamesResult);
+        outState.putSerializable(TOP_GAMES, mTopGames);
+        super.onSaveInstanceState(outState);
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_ilove_games, menu);
+        MenuItem item = menu.getItem(0);
+        item.setTitle(isShowingListMode ? "Grid" : "List");
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
+        if (id == R.id.change_view_mode) {
+            isShowingListMode = !isShowingListMode;
+            ((TopGamesAdapter) mAdapter).changeModeView(isShowingListMode);
+            defineLayoutManagerMode();
+            item.setTitle(isShowingListMode ? "Grid" : "List");
             return true;
         }
 
         return super.onOptionsItemSelected(item);
     }
+
+    private void defineLayoutManagerMode() {
+        if (isShowingListMode) {
+            mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        } else {
+            mRecyclerView.setLayoutManager(new StaggeredGridLayoutManager(getResources().getInteger(R.integer.grid_columm), StaggeredGridLayoutManager.VERTICAL));
+        }
+
+    }
+
 }

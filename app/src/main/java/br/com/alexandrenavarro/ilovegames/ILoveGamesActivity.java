@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import br.com.alexandrenavarro.ilovegames.model.TopGames;
 import br.com.alexandrenavarro.ilovegames.model.TopGamesResult;
 import br.com.alexandrenavarro.ilovegames.network.HttpRequest;
+import br.com.alexandrenavarro.ilovegames.util.EndlessRecyclerOnScrollListener;
 
 public class ILoveGamesActivity extends AppCompatActivity {
     private static final String ACTION_MODE = "ACTION_MODE";
@@ -50,6 +51,9 @@ public class ILoveGamesActivity extends AppCompatActivity {
 
         mAdapter = new TopGamesAdapter(this, mTopGames, isShowingListMode);
         mRecyclerView.setAdapter(mAdapter);
+        configScrollListener();
+
+
         String url = "https://api.twitch.tv/kraken/games/top";
 
         if (savedInstanceState == null) {
@@ -70,6 +74,34 @@ public class ILoveGamesActivity extends AppCompatActivity {
             });
         }
 
+    }
+
+    private void configScrollListener() {
+        mRecyclerView.addOnScrollListener(new EndlessRecyclerOnScrollListener(this, mRecyclerView.getLayoutManager()) {
+
+            @Override
+            public void onLoadMore(int current_page) {
+                if(mTopGames.size() >=50){
+                    return;
+                }
+                Log.i("loadMore", "url" + mTopGamesResult.get_links().getNext());
+                new HttpRequest<TopGamesResult>().get(ILoveGamesActivity.this, mTopGamesResult.get_links().getNext(), TopGamesResult.class, new Response.Listener<TopGamesResult>() {
+                    @Override
+                    public void onResponse(TopGamesResult result) {
+                        mTopGamesResult = result;
+                        if (mAdapter != null) {
+                            ((TopGamesAdapter) mAdapter).addAll(result.getTop());
+                        }
+
+                    }
+                }, new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        Log.i(TAG, "That didn't work!");
+                    }
+                });
+            }
+        });
     }
 
     @Override
@@ -97,6 +129,7 @@ public class ILoveGamesActivity extends AppCompatActivity {
             ((TopGamesAdapter) mAdapter).changeModeView(isShowingListMode);
             defineLayoutManagerMode();
             item.setTitle(isShowingListMode ? "Grid" : "List");
+            configScrollListener();
             return true;
         }
 

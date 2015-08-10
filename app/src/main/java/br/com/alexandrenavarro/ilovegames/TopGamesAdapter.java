@@ -90,6 +90,6 @@ public class TopGamesAdapter extends RecyclerView.Adapter<TopGamesAdapter.ViewHo
 
     public void changeModeView(boolean isShowingListMode) {
         this.isShowingListMode = isShowingListMode;
-//        notifyDataSetChanged();
+        notifyDataSetChanged();
     }
 }

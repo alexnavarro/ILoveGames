@@ -16,8 +16,9 @@ import br.com.alexandrenavarro.ilovegames.model.TopGamesResult;
 public class HttpRequest<T> {
 
     public void get(Context context, String url, Class<T> clazz, Response.Listener listener, Response.ErrorListener error) {
+        Log.i("HttpRequest", "exectute request to url " + url);
         RequestQueue queue = Volley.newRequestQueue(context);
         queue.add(new GsonRequest<T>(url, clazz, null, listener, error));
-        Log.i("HttpRequest", "exectute request to url " + url);
+
     }
 }
